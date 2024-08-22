@@ -1,38 +1,25 @@
-from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pymongo import MongoClient
+from bson import ObjectId
 
-class Memo(BaseModel):
-    id:int
-    content:str
+# MongoDB 클라이언트 설정
+client = MongoClient('mongodb://localhost:27017/')
+db = client['memo_database']
+collection = db['memos']
 
-memos = []
+def create_memo(memo):
+    result = collection.insert_one(memo)
+    return str(result.inserted_id)
 
-app = FastAPI()
+def read_memos():
+    memos_list = list(collection.find())
+    for memo in memos_list:
+        memo['_id'] = str(memo['_id'])  # ObjectId를 문자열로 변환
+    return memos_list
 
-@app.post("/memos")
-def create_memo(memo:Memo):
-    memos.append(memo)
-    return '메모 추가에 성공했습니다.'
+def update_memo(memo_id, new_content):
+    result = collection.update_one({"_id": ObjectId(memo_id)}, {"$set": {"content": new_content}})
+    return result.matched_count > 0
 
-@app.get("/memos")
-def read_memo():
-    return memos
-
-@app.put("/memos/{memo_id}")
-def put_memo(req_memo:Memo):
-    for memo in memos:
-        if memo.id==req_memo.id:
-            memo.content=req_memo.content
-            return '성공했습니다.'
-    return '그런 메모는 없습니다.'
-
-@app.delete("/memos/{memo_id}")
-def delete_memo(memo_id: int):
-    for index, memo in enumerate(memos):
-        if memo.id == memo_id:
-            memos.pop(index)
-            return '성공했습니다.'
-    return '그런 메모는 없습니다.'
-
-app.mount("/", StaticFiles(directory="static", html=True), name="static")
+def delete_memo(memo_id):
+    result = collection.delete_one({"_id": ObjectId(memo_id)})
+    return result.deleted_count > 0
